@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##############################################################################
-
+# coding:utf-8
 """Functions for using a Feature Pyramid Network (FPN)."""
 
 from __future__ import absolute_import
@@ -42,7 +42,7 @@ HIGHEST_BACKBONE_LVL = 5  # E.g., "conv5"-like level
 # FPN with ResNet
 # ---------------------------------------------------------------------------- #
 
-def add_fpn_ResNet50_conv5_body(model):
+def add_fpn_ResNet50_conv5_body(model): #利用ResNet50_conv5_body构建fpn网络
     return add_fpn_onto_conv_body(
         model, ResNet.add_ResNet50_conv5_body, fpn_level_info_ResNet50_conv5
     )
@@ -105,7 +105,7 @@ def add_fpn_onto_conv_body(
         model, fpn_level_info_func()
     )
 
-    if P2only:
+    if P2only: # P2指FPN论文中conv2层对应的FPN输出
         # use only the finest level
         return blobs_fpn[-1], dim_fpn, spatial_scales_fpn[-1]
     else:
@@ -119,6 +119,7 @@ def add_fpn(model, fpn_level_info):
     # backbone (usually "conv5"). First we build down, recursively constructing
     # lower/finer resolution FPN levels. Then we build up, constructing levels
     # that are even higher/coarser than the starting level.
+    # 从backbone的最高层（一般为conv5）开始，先向下递归地建立FPN(P5,P4,P3,...)，然后回到开始的level(conv5)，向上建立更高层的level(如P6)，该函数会返回各层的blob
     fpn_dim = cfg.FPN.DIM
     min_level, max_level = get_min_max_levels()
     # Count the number of backbone stages that we will generate FPN levels for
@@ -126,8 +127,8 @@ def add_fpn(model, fpn_level_info):
     # E.g., if the backbone level info defines stages 4 stages: "conv5",
     # "conv4", ... "conv2" and min_level=2, then we end up with 4 - (2 - 2) = 4
     # backbone stages to add FPN to.
-    num_backbone_stages = (
-        len(fpn_level_info.blobs) - (min_level - LOWEST_BACKBONE_LVL)
+    num_backbone_stages = (# 可以想象成总共有len(fpn_level_info.blobs)层堆栈，LOWEST_BACKBONE_LVL代表最低层编号，min_level代表人为要取的最低层编号
+        len(fpn_level_info.blobs) - (min_level - LOWEST_BACKBONE_LVL) 
     )
 
     lateral_input_blobs = fpn_level_info.blobs[:num_backbone_stages]
@@ -166,7 +167,8 @@ def add_fpn(model, fpn_level_info):
             fpn_dim_lateral[i + 1]       # lateral input dimension
         )
 
-    # Post-hoc scale-specific 3x3 convs
+    # Post-hoc（事后，因果颠倒） scale-specific 3x3 convs
+    # 接着又从下往上对横向连接输出后的blob进行3*3卷积，将结果依次存入blobs_fpn列表中
     blobs_fpn = []
     spatial_scales = []
     for i in range(num_backbone_stages):
@@ -271,16 +273,16 @@ def get_min_max_levels():
 # RPN with an FPN backbone
 # ---------------------------------------------------------------------------- #
 
-def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales):
+def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales): # 会被rpn_heads.py中的add_generic_rpn_outputs函数调用
     """Add RPN on FPN specific outputs."""
-    num_anchors = len(cfg.FPN.RPN_ASPECT_RATIOS)
+    num_anchors = len(cfg.FPN.RPN_ASPECT_RATIOS) # 三种方向比例[0.5, 1, 2]
     dim_out = dim_in
 
-    k_max = cfg.FPN.RPN_MAX_LEVEL  # coarsest level of pyramid
-    k_min = cfg.FPN.RPN_MIN_LEVEL  # finest level of pyramid
+    k_max = cfg.FPN.RPN_MAX_LEVEL  # coarsest level of pyramid，default is 6
+    k_min = cfg.FPN.RPN_MIN_LEVEL  # finest level of pyramid, default is 2
     assert len(blobs_in) == k_max - k_min + 1
     for lvl in range(k_min, k_max + 1):
-        bl_in = blobs_in[k_max - lvl]  # blobs_in is in reversed order
+        bl_in = blobs_in[k_max - lvl]  # blobs_in is in reversed order,bl_in starts from blobs_in[4],that is finest level
         sc = spatial_scales[k_max - lvl]  # in reversed order
         slvl = str(lvl)
 
@@ -329,7 +331,7 @@ def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales):
             # Share weights and biases
             sk_min = str(k_min)
             # RPN hidden representation
-            conv_rpn_fpn = model.ConvShared(
+            conv_rpn_fpn = model.ConvShared( # 在detector.py中定义，添加一个与另一conv op共享权值（及偏置）的conv op
                 bl_in,
                 'conv_rpn_fpn' + slvl,
                 dim_in,
@@ -380,7 +382,7 @@ def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales):
             rpn_cls_probs_fpn = model.net.Sigmoid(
                 rpn_cls_logits_fpn, 'rpn_cls_probs_fpn' + slvl
             )
-            model.GenerateProposals(
+            model.GenerateProposals( # 在detector.py中定义，将rpn输出的anchors转换成rois
                 [rpn_cls_probs_fpn, rpn_bbox_pred_fpn, 'im_info'],
                 ['rpn_rois_fpn' + slvl, 'rpn_roi_probs_fpn' + slvl],
                 anchors=lvl_anchors,
@@ -388,14 +390,14 @@ def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales):
             )
 
 
-def add_fpn_rpn_losses(model):
+def add_fpn_rpn_losses(model): # 同上，也会被rpn_heads.py中的add_generic_rpn_outputs函数调用
     """Add RPN on FPN specific losses."""
     loss_gradients = {}
     for lvl in range(cfg.FPN.RPN_MIN_LEVEL, cfg.FPN.RPN_MAX_LEVEL + 1):
         slvl = str(lvl)
         # Spatially narrow the full-sized RPN label arrays to match the feature map
         # shape
-        model.net.SpatialNarrowAs(
+        model.net.SpatialNarrowAs( # Reduces ("narrows") the spatial extent of A to that of B by removing rows and columns from the bottom and right.
             ['rpn_labels_int32_wide_fpn' + slvl, 'rpn_cls_logits_fpn' + slvl],
             'rpn_labels_int32_fpn' + slvl
         )

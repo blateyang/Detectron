@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##############################################################################
-
+# coding:utf-8
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -36,7 +36,7 @@ def add_generic_rpn_outputs(model, blob_in, dim_in, spatial_scale_in):
     """
     loss_gradients = None
     if cfg.FPN.FPN_ON:
-        # Delegate to the FPN module
+        # Delegate to the FPN module 委托给FPN模块
         FPN.add_fpn_rpn_outputs(model, blob_in, dim_in, spatial_scale_in)
         if cfg.MODEL.FASTER_RCNN:
             # CollectAndDistributeFpnRpnProposals also labels proposals when in
@@ -106,7 +106,7 @@ def add_single_scale_rpn_outputs(model, blob_in, dim_in, spatial_scale):
         #  2) training for Faster R-CNN
         # Otherwise (== training for RPN only), proposals are not needed
         model.net.Sigmoid('rpn_cls_logits', 'rpn_cls_probs')
-        model.GenerateProposals(
+        model.GenerateProposals(# 在detector.py中定义，将proposals转换成rois（包括删除不合要求的anchors，执行NMS等）
             ['rpn_cls_probs', 'rpn_bbox_pred', 'im_info'],
             ['rpn_rois', 'rpn_roi_probs'],
             anchors=anchors,
@@ -116,7 +116,7 @@ def add_single_scale_rpn_outputs(model, blob_in, dim_in, spatial_scale):
     if cfg.MODEL.FASTER_RCNN:
         if model.train:
             # Add op that generates training labels for in-network RPN proposals
-            model.GenerateProposalLabels(['rpn_rois', 'roidb', 'im_info'])
+            model.GenerateProposalLabels(['rpn_rois', 'roidb', 'im_info']) # 也在detector.py中定义
         else:
             # Alias rois to rpn_rois for inference
             model.net.Alias('rpn_rois', 'rois')
@@ -126,7 +126,7 @@ def add_single_scale_rpn_losses(model):
     """Add losses for a single scale RPN model (i.e., no FPN)."""
     # Spatially narrow the full-sized RPN label arrays to match the feature map
     # shape
-    model.net.SpatialNarrowAs(
+    model.net.SpatialNarrowAs( # rpn_labels_int32_wide在rpn.py中有涉及，但还是搞不太懂
         ['rpn_labels_int32_wide', 'rpn_cls_logits'], 'rpn_labels_int32'
     )
     for key in ('targets', 'inside_weights', 'outside_weights'):

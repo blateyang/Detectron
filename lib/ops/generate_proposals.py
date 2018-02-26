@@ -130,7 +130,7 @@ class GenerateProposalsOp(object):
         # 4. sort all (proposal, score) pairs by score from highest to lowest
         # 5. take top pre_nms_topN (e.g. 6000)
         if pre_nms_topN <= 0 or pre_nms_topN >= len(scores):
-            order = np.argsort(-scores.squeeze())
+            order = np.argsort(-scores.squeeze()) # np.squeeze()从数组的形状中删除单维条目，即把shape中为1的维度去掉
         else:
             # Avoid sorting possibly large arrays; First partition to get top K
             # unsorted and then sort just those (~20x faster for 200k scores)

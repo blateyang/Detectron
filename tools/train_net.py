@@ -124,6 +124,7 @@ def main():
 
 def train_model():
     """Model training loop."""
+    # 模型训练主函数，主要完成模型的创建，迭代训练，相关训练统计数据记录和权重文件的定期及最终输出
     logger = logging.getLogger(__name__)
     model, start_iter, checkpoints, output_dir = create_model()
     if 'final' in checkpoints:
@@ -131,7 +132,7 @@ def train_model():
         return checkpoints
 
     setup_model_for_training(model, output_dir)
-    training_stats = TrainingStats(model)
+    training_stats = TrainingStats(model) # 追踪一些关键的训练统计数据
     CHECKPOINT_PERIOD = int(cfg.TRAIN.SNAPSHOT_ITERS / cfg.NUM_GPUS)
 
     for cur_iter in range(start_iter, cfg.SOLVER.MAX_ITER):
@@ -172,6 +173,7 @@ def create_model():
     """Build the model and look for saved model checkpoints in case we can
     resume from one.
     """
+    # 建立一个模型并寻找已被保存的模型检查点以便可以从检查点处继续，相当于支持断点续训
     logger = logging.getLogger(__name__)
     start_iter = 0
     checkpoints = {}
@@ -203,6 +205,7 @@ def create_model():
             )
 
     logger.info('Building model: {}'.format(cfg.MODEL.TYPE))
+    # 此处利用model_builder创建yaml配置文件中制定的模型
     model = model_builder.create(cfg.MODEL.TYPE, train=True)
     if cfg.MEMONGER:
         optimize_memory(model)

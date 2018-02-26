@@ -63,7 +63,7 @@ def add_stage(
     dim_in,
     dim_out,
     dim_inner,
-    dilation,
+    dilation, # 相当于padding参数
     stride_init=2
 ):
     """Add a ResNet stage to the model by stacking n residual blocks."""
@@ -92,15 +92,18 @@ def add_ResNet_convX_body(model, block_counts, freeze_at=2):
     X = 4 or 5)."""
     assert freeze_at in [0, 2, 3, 4, 5]
     p = model.Conv('data', 'conv1', 3, 64, 7, pad=3, stride=2, no_bias=1)
-    p = model.AffineChannel(p, 'res_conv1_bn', dim=64, inplace=True)
+    # Applies a separate affine transformation to each channel of the input. Useful for replacing spatial batch norm with its equivalent fixed transformation.
+    p = model.AffineChannel(p, 'res_conv1_bn', dim=64, inplace=True) # 感觉AffineChannel这个函数起到batch normalization的作用
     p = model.Relu(p, p)
     p = model.MaxPool(p, 'pool1', kernel=3, pad=1, stride=2)
     dim_in = 64
+    # 在cfg文件中，NUM_GROUPS用于设置卷积组数，RESNET为1，RESNXT大于1；WIDTH_PER_GROUP为64
     dim_bottleneck = cfg.RESNETS.NUM_GROUPS * cfg.RESNETS.WIDTH_PER_GROUP
     (n1, n2, n3) = block_counts[:3]
-    s, dim_in = add_stage(model, 'res2', p, n1, dim_in, 256, dim_bottleneck, 1)
+    # 通过堆叠n1个residual blocks来给model添加一个ResNet的卷积块
+    s, dim_in = add_stage(model, 'res2', p, n1, dim_in, 256, dim_bottleneck, 1) 
     if freeze_at == 2:
-        model.StopGradient(s, s)
+        model.StopGradient(s, s) # 停止该ResNet卷积块的梯度更新
     s, dim_in = add_stage(
         model, 'res3', s, n2, dim_in, 512, dim_bottleneck * 2, 1
     )
@@ -168,7 +171,7 @@ def add_residual_block(
         dim_in != dim_out and dim_in != 64 and dilation == 1
     ) else 1
 
-    # transformation blob
+    # transformation blob（bottleneck_transformation）
     tr = globals()[cfg.RESNETS.TRANS_FUNC](
         model,
         blob_in,

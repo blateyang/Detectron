@@ -13,6 +13,7 @@
 # limitations under the License.
 ##############################################################################
 
+# coding:utf-8
 """Detectron model construction functions.
 
 Detectron supports a large number of model types. The configuration space is
@@ -121,7 +122,7 @@ def create(model_type_func, train=False, gpu_id=0):
     )
     model.only_build_forward_pass = False
     model.target_gpu_id = gpu_id
-    return get_func(model_type_func)(model)
+    return get_func(model_type_func)(model) # 先调用get_func函数返回model_type_func指定的（如generalized_rcnn）模型函数对象
 
 
 def get_func(func_name):
@@ -132,12 +133,14 @@ def get_func(func_name):
     if func_name == '':
         return None
     new_func_name = modeling.name_compat.get_new_name(func_name)
-    if new_func_name != func_name:
+    # 若在配置文件中指定的模型TYPE与经处理后的new_func_name不符，如TYPE是在420多行列出的弃用函数名rpn,fast-rcnn,faster-rcnn等，则换成统一的新名字，generalized_rcnn
+    if new_func_name != func_name: 
         logger.warn(
             'Remapping old function name: {} -> {}'.
             format(func_name, new_func_name)
         )
         func_name = new_func_name
+    # 尝试在当前module寻找func_name，若失败，则在modeling目录下寻找，并返回对应的函数对象
     try:
         parts = func_name.split('.')
         # Refers to a function in this module
@@ -146,12 +149,12 @@ def get_func(func_name):
         # Otherwise, assume we're referencing a module under modeling
         module_name = 'modeling.' + '.'.join(parts[:-1])
         module = importlib.import_module(module_name)
-        return getattr(module, parts[-1])
+        return getattr(module, parts[-1]) # 等价于module.parts[-1]
     except Exception:
         logger.error('Failed to find function: {}'.format(func_name))
         raise
 
-
+# 通过配置参数和接口函数_add_xxx_head等，将backbone,RPN,FPN,Fast R-CNN,Mask head,keypoint head等模块组合起来，构建一个通用检测模型
 def build_generic_detection_model(
     model,
     add_conv_body_func,
@@ -166,7 +169,7 @@ def build_generic_detection_model(
         """
         # Add the conv body (called "backbone architecture" in papers)
         # E.g., ResNet-50, ResNet-50-FPN, ResNeXt-101-FPN, etc.
-        blob_conv, dim_conv, spatial_scale_conv = add_conv_body_func(model)
+        blob_conv, dim_conv, spatial_scale_conv = add_conv_body_func(model) # add_conv_body_func=get_func(cfg.MODEL.CONV_BODY)
         if freeze_conv_body:
             for b in c2_utils.BlobReferenceList(blob_conv):
                 model.StopGradient(b, b)

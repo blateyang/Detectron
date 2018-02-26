@@ -21,6 +21,7 @@
 # Written by Ross Girshick and Sean Bell
 # --------------------------------------------------------
 
+# coding:utf-8
 import numpy as np
 
 # Verify that we compute the same anchors as Shaoqing's matlab implementation:
@@ -69,11 +70,11 @@ def _generate_anchors(base_size, scales, aspect_ratios):
     """Generate anchor (reference) windows by enumerating aspect ratios X
     scales wrt a reference (0, 0, base_size - 1, base_size - 1) window.
     """
-    anchor = np.array([1, 1, base_size, base_size], dtype=np.float) - 1
-    anchors = _ratio_enum(anchor, aspect_ratios)
+    anchor = np.array([1, 1, base_size, base_size], dtype=np.float) - 1 
+    anchors = _ratio_enum(anchor, aspect_ratios) # 以base_size=16为基础，枚举出3种ratio的anchor
     anchors = np.vstack(
         [_scale_enum(anchors[i, :], scales) for i in range(anchors.shape[0])]
-    )
+    ) # 对每一种ratio的anchor,又枚举生成若干种scales的anchor,注意这里的scales已经换算成相对于base_size的比例了
     return anchors
 
 
@@ -108,8 +109,10 @@ def _ratio_enum(anchor, ratios):
     w, h, x_ctr, y_ctr = _whctrs(anchor)
     size = w * h
     size_ratios = size / ratios
+    # 通过将size作为中间量去求不同ratio的ws和hs,如ratios=0.5时，ws=sqrt(2*w*h),hs=sqrt(w*h/2)
     ws = np.round(np.sqrt(size_ratios))
     hs = np.round(ws * ratios)
+    # 生成3种不同ratios的anchors，返回的是左上和右下角的坐标
     anchors = _mkanchors(ws, hs, x_ctr, y_ctr)
     return anchors
 
